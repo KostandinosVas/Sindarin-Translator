@@ -15,17 +15,17 @@ const ElvishTranslator = () => {
         const words = inputPhrase.toLowerCase().split(' ');
         let translatedWords = [];
         let index = 0;
-    
+
         // Sort dictionary keys by length in descending order
         const sortedKeys = Object.keys(elvishDictionary).sort((a, b) => b.split(' ').length - a.split(' ').length);
-    
+
         while (index < words.length) {
             let matchFound = false;
-    
+
             for (let key of sortedKeys) {
                 const keyWords = key.split(' ');
-                const slice = words.slice(index, index + keyWords.length).join(' ');
-    
+                const slice = words.slice(index, index + keyWords.length).join(' ').replace(/[.,!?]/g, '');
+
                 if (slice === key) {
                     translatedWords.push(elvishDictionary[key]);
                     index += keyWords.length;
@@ -33,13 +33,14 @@ const ElvishTranslator = () => {
                     break;
                 }
             }
-    
+
             if (!matchFound) {
-                translatedWords.push(words[index]);
+                const cleanedWord = words[index].replace(/[.,!?]/g, ''); // Remove punctuation
+                translatedWords.push(elvishDictionary[cleanedWord] || words[index]);
                 index++;
             }
         }
-    
+
         setTranslation(translatedWords.join(' '));
     };
     

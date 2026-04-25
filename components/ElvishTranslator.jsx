@@ -16,8 +16,13 @@ const ElvishTranslator = () => {
         let translatedWords = [];
         let index = 0;
 
-        // Sort dictionary keys by length in descending order
-        const sortedKeys = Object.keys(elvishDictionary).sort((a, b) => b.split(' ').length - a.split(' ').length);
+        // Build the appropriate lookup dictionary
+        const lookupDict = isEnglishToElvish
+            ? elvishDictionary
+            : Object.fromEntries(Object.entries(elvishDictionary).map(([k, v]) => [v, k]));
+
+        // Sort dictionary keys by word count (longest phrase first)
+        const sortedKeys = Object.keys(lookupDict).sort((a, b) => b.split(' ').length - a.split(' ').length);
 
         while (index < words.length) {
             let matchFound = false;
@@ -27,7 +32,7 @@ const ElvishTranslator = () => {
                 const slice = words.slice(index, index + keyWords.length).join(' ').replace(/[.,!?]/g, '');
 
                 if (slice === key) {
-                    translatedWords.push(elvishDictionary[key]);
+                    translatedWords.push(lookupDict[key]);
                     index += keyWords.length;
                     matchFound = true;
                     break;
@@ -35,8 +40,8 @@ const ElvishTranslator = () => {
             }
 
             if (!matchFound) {
-                const cleanedWord = words[index].replace(/[.,!?]/g, ''); // Remove punctuation
-                translatedWords.push(elvishDictionary[cleanedWord] || words[index]);
+                const cleanedWord = words[index].replace(/[.,!?]/g, '');
+                translatedWords.push(lookupDict[cleanedWord] || words[index]);
                 index++;
             }
         }

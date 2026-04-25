@@ -5,9 +5,36 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCopy, faRepeat } from '@fortawesome/free-solid-svg-icons';
 import '../app/globals.css';
 
+// Flatten the dictionary: split comma-separated synonym keys, take primary Sindarin value.
+// For space-separated synonym groups (no commas), also register each word individually.
+const buildFlatMap = (dict) => {
+    const map = {};
+    const addEntry = (subKey, value) => {
+        if (!map[subKey]) map[subKey] = value;
+    };
+    for (const [key, rawValue] of Object.entries(dict)) {
+        const primaryValue = rawValue.split(',')[0].trim();
+        const subKeys = key.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+        for (const subKey of subKeys) {
+            // Keep the full subkey (enables multi-word phrase matching)
+            addEntry(subKey, primaryValue);
+            // Also add each individual word so synonym groups are searchable
+            if (subKey.includes(' ')) {
+                for (const word of subKey.split(' ')) {
+                    const clean = word.replace(/[^a-z0-9\-]/gi, '').toLowerCase();
+                    if (clean) addEntry(clean, primaryValue);
+                }
+            }
+        }
+    }
+    return map;
+};
+
+const flatDictionary = buildFlatMap(elvishDictionary);
+
 const ElvishTranslator = () => {
     const [inputPhrase, setInputPhrase] = useState('');
-    const [translation, setTranslation] = useState('');
+    const [translation, setTranslation] = useState([]);
     const [isEnglishToElvish, setIsEnglishToElvish] = useState(true);
     const [placeholder, setPlaceholder] = useState("Enter English text");
 
@@ -18,8 +45,8 @@ const ElvishTranslator = () => {
 
         // Build the appropriate lookup dictionary
         const lookupDict = isEnglishToElvish
-            ? elvishDictionary
-            : Object.fromEntries(Object.entries(elvishDictionary).map(([k, v]) => [v, k]));
+            ? flatDictionary
+            : Object.fromEntries(Object.entries(flatDictionary).map(([k, v]) => [v.toLowerCase(), k]));
 
         // Sort dictionary keys by word count (longest phrase first)
         const sortedKeys = Object.keys(lookupDict).sort((a, b) => b.split(' ').length - a.split(' ').length);
@@ -32,7 +59,7 @@ const ElvishTranslator = () => {
                 const slice = words.slice(index, index + keyWords.length).join(' ').replace(/[.,!?]/g, '');
 
                 if (slice === key) {
-                    translatedWords.push(lookupDict[key]);
+                    translatedWords.push({ text: lookupDict[key], found: true });
                     index += keyWords.length;
                     matchFound = true;
                     break;
@@ -41,19 +68,23 @@ const ElvishTranslator = () => {
 
             if (!matchFound) {
                 const cleanedWord = words[index].replace(/[.,!?]/g, '');
-                translatedWords.push(lookupDict[cleanedWord] || words[index]);
+                if (lookupDict[cleanedWord]) {
+                    translatedWords.push({ text: lookupDict[cleanedWord], found: true });
+                } else {
+                    translatedWords.push({ text: words[index], found: false });
+                }
                 index++;
             }
         }
 
-        setTranslation(translatedWords.join(' '));
+        setTranslation(translatedWords);
     };
     
 
     const toggleTranslationDirection = () => {
         setIsEnglishToElvish(!isEnglishToElvish);
         setInputPhrase('');
-        setTranslation('');
+        setTranslation([]);
         setPlaceholder(isEnglishToElvish ? "Enter Sindarin text" : "Enter English text");
     };
 
@@ -61,13 +92,13 @@ const ElvishTranslator = () => {
         const value = e.target.value;
         setInputPhrase(value);
         if (!value) {
-            setTranslation(''); // Clear translation when input is cleared
+            setTranslation([]);
         }
     };
 
     const copyToClipboard = () => {
-        if (translation) {
-            navigator.clipboard.writeText(translation).then(() => {
+        if (translation.length > 0) {
+            navigator.clipboard.writeText(translation.map(t => t.text).join(' ')).then(() => {
                 alert('Copied to clipboard!');
             }, () => {
                 alert('Failed to copy!');
@@ -108,7 +139,23 @@ const ElvishTranslator = () => {
                 Translate
             </button>
             <div className='flex justify-center items-center border border-white w-full min-h-40 rounded relative bg-[#1A1A1A] bg-opacity-50'>
-                {translation && <p className='text-3xl text-[#F5F5DC]'>{translation}</p>}
+                {translation.length > 0 && (
+                    <p className='text-3xl text-[#F5F5DC] px-4 text-center'>
+                        {translation.map((token, i) => (
+                            <span key={i}>
+                                {i > 0 ? ' ' : ''}
+                                {token.found ? (
+                                    <span>{token.text}</span>
+                                ) : (
+                                    <span
+                                        className='text-red-500 cursor-help'
+                                        title='This word has no Sindarin translation'
+                                    >{token.text}</span>
+                                )}
+                            </span>
+                        ))}
+                    </p>
+                )}
                 <FontAwesomeIcon
                             icon={faCopy}
                             className='text-slate-300 icon-fixed-size cursor-pointer absolute top-4 right-4'
